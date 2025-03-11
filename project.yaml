@@ -1,0 +1,96 @@
+system:
+  name: "Codebase RAG Assistant"
+  version: "0.1"
+  analysis_modules:
+    - code_structure_parser
+    - dependency_mapper
+    - semantic_analyzer
+  supported_languages:
+    - python
+
+analysis:
+  code_parsing:
+    entry_points:
+      - "package.json"
+      - "requirements.txt"
+      - "pom.xml"
+    directory_structure:
+      ignore:
+        - "node_modules"
+        - ".git"
+        - "venv"
+    file_analysis:
+      max_size: "1MB"
+      sample_rate: 0.2
+
+rag:
+  knowledge_base:
+    storage: "chromadb"
+    embedding_model: "nomic-embed-text" 
+    indexing_strategy:
+      chunk_size: 1024
+      overlap: 128
+  query_processing:
+    context_window: 4096
+    temperature: 0.3
+    max_tokens: 1024
+
+ollama:
+  integration:
+    base_url: "http://localhost:11434"
+    default_model: "phi4-mini"
+    fallback_models:
+      - "phi4"
+  prompt_templates:
+    code_edit:
+      system_prompt: |
+        You are a senior software engineer analyzing a codebase. Consider:
+        - Existing architecture patterns
+        - File structure conventions
+        - Language-specific best practices
+        - Dependencies and interfaces
+    file_change:
+      system_prompt: |
+        You are a code change analyst working with THESE EXACT FILES:
+        {files}
+        
+        ALWAYS:
+        1. Reference specific file paths from the list above
+        2. Cite line numbers when possible
+        3. Show actual code examples from context
+        4. Consider config files first (look for .yaml/.yml)
+        
+        NEVER:
+        - Invent new file paths
+        - Suggest generic examples
+        - Mention files not in the list
+        behavior_addition: |
+          When suggesting behavior additions:
+          1. Identify similar existing implementations
+          2. Highlight relevant architectural layers
+          3. Suggest appropriate test locations
+workflow:
+  analysis_phases:
+    - directory_structure
+    - dependency_graph
+    - interface_mapping
+    - cross_reference
+  edit_suggestion:
+    steps:
+      - context_gathering
+      - pattern_matching
+      - impact_analysis
+      - code_generation
+
+output:
+  formats:
+    - yaml
+    - markdown
+    - json
+  visualization:
+    dependency_graph: true
+    complexity_heatmap: false
+  report_types:
+    - architectural_overview
+    - change_impact_analysis
+    - test_coverage_map
