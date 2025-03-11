@@ -38,7 +38,7 @@ rag:
 ollama:
   integration:
     base_url: "http://localhost:11434"
-    default_model: "phi4-mini"
+    default_model: "phi4"
     fallback_models:
       - "phi4"
   prompt_templates:

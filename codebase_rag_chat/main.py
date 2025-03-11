@@ -1,5 +1,5 @@
 # main.py
-import os
+import importlib
 import json
 import time
 import yaml
@@ -8,14 +8,18 @@ import chromadb
 import requests
 from pathlib import Path
 from typing import Dict, Any
-from analysis_modules import (
+from codebase_rag_chat.analysis_modules import (
     CodeStructureParser,
     DependencyMapper,
     SemanticAnalyzer
 )
 
 class CodebaseRAGAssistant:
-    def __init__(self, config_path: str = "project.yaml"):
+    def __init__(self, config_path: str = None):
+        # Use package resources as fallback
+        if not config_path or not Path(config_path).exists():
+            config_path = str(importlib.resources.files('codebase_rag_chat') / 'project.yaml')
+        
         with open(config_path) as f:
             self.config = yaml.safe_load(f)
         
@@ -142,38 +146,87 @@ class CodebaseRAGAssistant:
         dot.render(self.output_dir/'dependency_graph.gv', view=False)
         print(f"📈 Dependency graph saved to {self.output_dir/'dependency_graph.gv.pdf'}")
 
-    def setup_knowledge_base(self, semantic_results: Dict) -> chromadb.Collection:
+    def setup_knowledge_base(self, semantic_results: Dict = None) -> chromadb.Collection:
         try:
+            print("🔧 Setting up knowledge base...")
             client = chromadb.PersistentClient(
                 path=str(self.output_dir/'chroma_db')
             )
-            
-            collection = client.get_or_create_collection(
-                name="code_embeddings",
-                metadata={"hnsw:space": "cosine"}
-            )
-            
-            # Add error logging for embeddings
-            valid = 0
-            for file_path, analysis in semantic_results.items():
-                for chunk, embedding in analysis.items():
-                    if embedding and len(embedding) > 0:
-                        collection.add(
-                            embeddings=[embedding],
-                            documents=[chunk],
-                            metadatas=[{"file_path": file_path}],
-                            ids=[f"{file_path}-{hash(chunk)}"]
-                        )
-                        valid += 1
-            print(f"✅ Stored {valid} valid embeddings")
-            
+
+            if semantic_results:
+
+                print("📦 Creating/loading collection for code embeddings")
+                collection = client.get_or_create_collection(
+                    name="code_embeddings",
+                    metadata={"hnsw:space": "cosine"}
+                )
+
+                print("🔍 Batch processing embeddings...")
+                # Prepare batch data
+                batch_size = 100
+                embeddings = []
+                documents = []
+                metadatas = []
+                ids = []
+                
+                total_processed = 0
+                print(f"🔍 Processing {len(semantic_results)} files...")
+
+                for i, (file_path, analysis) in enumerate(semantic_results.items()):
+                    if i % 10 == 0:  # Update every 10 files
+                        print(f"⏳ Processed {i}/{len(semantic_results)} files...", end='\r')
+
+                    for chunk, embedding in analysis.items():
+                        if embedding and len(embedding) > 0:
+                            embeddings.append(embedding)
+                            documents.append(chunk)
+                            metadatas.append({"file_path": file_path})
+                            ids.append(f"{file_path}-{hash(chunk)}")
+                            total_processed += 1
+
+                            # Add in batches
+                            if len(embeddings) >= batch_size:
+                                collection.add(
+                                    embeddings=embeddings,
+                                    documents=documents,
+                                    metadatas=metadatas,
+                                    ids=ids
+                                )
+                                print(f"📦 Added batch of {len(embeddings)} embeddings")
+                                # Reset batch buffers
+                                embeddings = []
+                                documents = []
+                                metadatas = []
+                                ids = []
+
+                # Add any remaining items
+                if embeddings:
+                    collection.add(
+                        embeddings=embeddings,
+                        documents=documents,
+                        metadatas=metadatas,
+                        ids=ids
+                    )
+                    print(f"📦 Added final batch of {len(embeddings)} embeddings")
+
+                print(f"✅ Successfully stored {total_processed} embeddings in total")
+            else:
+                try:
+                    return client.get_collection("code_embeddings")
+                except ValueError:
+                    raise RuntimeError("No existing knowledge base - run analysis first")
             return collection
+
         except Exception as e:
             print(f"🚨 Knowledge base error: {str(e)}")
             raise
 
-    def query_interface(self, collection: chromadb.Collection):
-        from ollama_integration import OllamaClient
+    def query_interface(self, collection: chromadb.Collection = None):
+
+        if not collection:
+            collection = self.setup_knowledge_base()
+
+        from codebase_rag_chat.ollama_integration import OllamaClient
         ollama = OllamaClient()
         print("\n💬 Codebase Query Interface (type 'exit' to quit)")
 
@@ -249,14 +302,25 @@ def main():
     assistant = CodebaseRAGAssistant()
     
     # Run full analysis pipeline
+    print("🚀 Starting codebase analysis...")
+
     analysis_results = assistant.run_analysis()
+
+    print("\n✅ Analysis complete!")
+
     
     # Generate formatted reports
+
+    print("📊 Generating reports...")
     assistant.generate_reports(analysis_results)
-    
+    print("✅ Reports generated!")
     # Initialize RAG knowledge base
+
+    print("🔧 Setting up knowledge base...")
     kb_collection = assistant.setup_knowledge_base(analysis_results['semantics'])
-    
+    print("✅ Knowledge base setup complete!")
+
+    print("\n💬 Starting query interface...")
     # Start interactive query interface
     assistant.query_interface(kb_collection)
 
