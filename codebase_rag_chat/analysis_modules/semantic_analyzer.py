@@ -3,7 +3,6 @@ import os
 from typing import Dict, List
 from dotenv import load_dotenv
 import requests
-from config import DEFAULT_CONFIG
 import re
 
 load_dotenv()
@@ -22,7 +21,7 @@ class SemanticAnalyzer:
     def _chunk_python(self, code: str) -> List[str]:
         lines = code.split('\n')
         chunks = []
-        current_chunk = []
+        current_chunk: List[str] = []
         current_length = 0
         for line in lines:
             line_length = len(line.split())
@@ -52,7 +51,7 @@ class SemanticAnalyzer:
     def _chunk_react_components(self, code: str) -> List[str]:
         """Split code into component boundaries"""
         chunks = []
-        current_chunk = []
+        current_chunk: List[str] = []
         in_component = False
         
         for line in code.split('\n'):

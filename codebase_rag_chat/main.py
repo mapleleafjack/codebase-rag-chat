@@ -1,5 +1,4 @@
 # main.py
-import importlib
 import json
 import time
 import markdown2
@@ -7,7 +6,7 @@ import chromadb
 import requests
 from pathlib import Path
 from typing import Dict, Any
-from config import DEFAULT_CONFIG
+from codebase_rag_chat.config import DEFAULT_CONFIG
 from codebase_rag_chat.analysis_modules import (
     CodeStructureParser,
     DependencyMapper,

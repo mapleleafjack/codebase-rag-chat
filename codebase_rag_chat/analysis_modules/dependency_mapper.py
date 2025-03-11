@@ -3,7 +3,7 @@ import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List
-from config import DEFAULT_CONFIG
+from ..config import DEFAULT_CONFIG
 import ast
 import re
 

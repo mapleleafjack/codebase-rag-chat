@@ -1,6 +1,5 @@
-# ollama_integration.py
 import requests
-from config import DEFAULT_CONFIG  # import inline config
+from codebase_rag_chat.config import DEFAULT_CONFIG 
 
 class OllamaClient:
     def __init__(self):

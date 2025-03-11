@@ -4,7 +4,7 @@ import ast
 import magic
 from pathlib import Path
 from typing import Dict, List, Any
-from config import DEFAULT_CONFIG
+from ..config import DEFAULT_CONFIG
 import ast
 
 class CodeStructureParser:

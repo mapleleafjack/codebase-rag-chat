@@ -4,7 +4,7 @@ DEFAULT_CONFIG = {
     "ollama": {
         "integration": {
             "base_url": "http://localhost:11434",
-            "default_model": "phi4"
+            "default_model": "phi4-mini"
         },
         "prompt_templates": {
             "file_change": {
