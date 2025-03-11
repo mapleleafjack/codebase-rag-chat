@@ -54,13 +54,11 @@ class CodebaseRAGAssistant:
     def _analyze_code_semantics(self, structure: Dict) -> Dict:
         semantics = {}
         for module in structure.get('modules', []):
-            file_path = module['file']
-            if any(file_path.endswith(ext) for ext in ['.py', '.yaml', '.yml', '.md', '.js', '.ts', '.html', '.css', '.jsx', '.tsx', '.json', '.xml']):
-                with open(file_path) as f:
-                    code = f.read()
-                    analysis = self.semantic_analyzer.analyze_code_semantics(code)
-                    if analysis:
-                        semantics[file_path] = analysis
+            content = module.get('content', '')  # Get stored content
+            if content:
+                analysis = self.semantic_analyzer.analyze_code_semantics(content)
+                if analysis:
+                    semantics[module['file']] = analysis
         return semantics
 
     def generate_reports(self, results: Dict) -> None:

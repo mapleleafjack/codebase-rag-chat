@@ -4,6 +4,7 @@ from typing import Dict, List
 from dotenv import load_dotenv
 import requests
 from config import DEFAULT_CONFIG
+import re
 
 load_dotenv()
 
@@ -17,8 +18,8 @@ class SemanticAnalyzer:
     def analyze_code_semantics(self, code: str) -> Dict[str, List[float]]:
         chunks = self._chunk_code(code)
         return self._generate_embeddings(chunks)
-
-    def _chunk_code(self, code: str) -> List[str]:
+    
+    def _chunk_python(self, code: str) -> List[str]:
         lines = code.split('\n')
         chunks = []
         current_chunk = []
@@ -33,6 +34,41 @@ class SemanticAnalyzer:
             current_length += line_length
         if current_chunk:
             chunks.append('\n'.join(current_chunk))
+        return chunks
+
+
+    def _chunk_code(self, code: str) -> List[str]:
+        # Handle JSX/TSX components
+        if any(code.startswith(s) for s in ['import React', 'export function', 'export const']):
+            return self._chunk_react_components(code)
+        
+        # Handle Python classes/functions
+        if 'def ' in code or 'class ' in code:
+            return self._chunk_python(code)
+        
+        # Default chunking
+        return self._chunk_python(code)
+
+    def _chunk_react_components(self, code: str) -> List[str]:
+        """Split code into component boundaries"""
+        chunks = []
+        current_chunk = []
+        in_component = False
+        
+        for line in code.split('\n'):
+            if re.match(r'export (default )?(function|const) [A-Z]', line):
+                if current_chunk:
+                    chunks.append('\n'.join(current_chunk))
+                current_chunk = [line]
+                in_component = True
+            elif in_component and line.strip() == '}':
+                current_chunk.append(line)
+                chunks.append('\n'.join(current_chunk))
+                current_chunk = []
+                in_component = False
+            elif in_component:
+                current_chunk.append(line)
+        
         return chunks
 
     def _generate_embeddings(self, chunks: List[str]) -> Dict[str, List[float]]:

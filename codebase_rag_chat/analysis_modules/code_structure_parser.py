@@ -5,7 +5,7 @@ import magic
 from pathlib import Path
 from typing import Dict, List, Any
 from config import DEFAULT_CONFIG
-import re
+import ast
 
 class CodeStructureParser:
     def __init__(self):
@@ -20,6 +20,15 @@ class CodeStructureParser:
         return int(float(number) * units[unit])
 
     def analyze_directory(self, root_dir: str = ".") -> Dict[str, Any]:
+        # Add priority scores to different file types
+        PRIORITY_EXTENSIONS = {
+            '.tsx': 5,  # Boosted from 4
+            '.py': 4,    # Increased priority
+            '.ts': 3,
+            '.jsx': 3,
+            '.css': 2
+        }
+            
         structure = {
             "modules": [],
             "entry_points": [],
@@ -27,6 +36,10 @@ class CodeStructureParser:
             "project_size": 0
         }
         for root, dirs, files in os.walk(root_dir):
+            depth = root.count(os.sep) 
+            depth_weight = max(0, 3 - depth)  # Prioritize src/ components
+
+
             dirs[:] = [d for d in dirs if d not in self.ignore_dirs]
             for file in files:
                 file_path = Path(root) / file
@@ -41,12 +54,23 @@ class CodeStructureParser:
                 mime = magic.from_file(str(file_path), mime=True)
                 structure["file_types"].setdefault(mime, 0)
                 structure["file_types"][mime] += 1
-                if file_path.suffix in [".py", ".js", ".jsx", ".ts", ".tsx"]:
+                if file_path.suffix in [".py", ".js", ".jsx", ".ts", ".tsx", ".css"]:
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                    except UnicodeDecodeError:
+                        continue
+                    priority = PRIORITY_EXTENSIONS.get(file_path.suffix, 1)
+                    priority += depth_weight
+
                     structure["modules"].append({
                         "file": str(file_path),
                         "language": file_path.suffix[1:],
-                        "size": file_size
+                        "priority": priority,
+                        "content": content
                     })
+
+
         return structure
 
     def parse_python_file(self, file_path: Path) -> Dict[str, Any]:

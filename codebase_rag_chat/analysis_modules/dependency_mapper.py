@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List
 from config import DEFAULT_CONFIG
 import ast
+import re
 
 class DependencyMapper:
     def __init__(self):
@@ -95,12 +96,33 @@ class DependencyMapper:
         return {"code_imports": deps}
 
     def _parse_javascript_imports(self, content: str) -> List[str]:
-        """Detects ES6 imports in JS/TS files"""
+        """Improved React component detection with prop types"""
         imports = []
-        for line in content.split('\n'):
-            if line.strip().startswith('import'):
-                # Match patterns like: import React from 'react'
-                match = re.match(r"import\s+.*?\s+from\s+['\"](.+?)['\"]", line)
-                if match:
-                    imports.append(match.group(1))
+        
+        # 1. Find component definitions with props
+        component_pattern = re.compile(
+            r"(export\s+(default\s+)?(function|const)\s+([A-Z]\w+)\s*\(\{([^}]*)\}\)\s*=>)",
+            re.MULTILINE
+        )
+        
+        # 2. Detect styled-components
+        styled_pattern = re.compile(r"styled\.(\w+)\`")
+        
+        # 3. Find context providers/consumers
+        context_pattern = re.compile(r"createContext<([^>]+)>\(\)")
+        
+        matches = component_pattern.findall(content)
+        styled_matches = styled_pattern.findall(content)
+        context_matches = context_pattern.findall(content)
+        
+        # Add component props to dependencies
+        for match in matches:
+            imports.append(f"Component:{match[3]} Props:[{match[4].strip()}]")
+            
+        # Add styled components
+        imports.extend(f"Styled:{comp}" for comp in styled_matches)
+        
+        # Add context types
+        imports.extend(f"ContextType:{ctx}" for ctx in context_matches)
+        
         return imports
