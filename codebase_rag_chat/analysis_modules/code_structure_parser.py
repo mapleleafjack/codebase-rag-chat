@@ -4,12 +4,12 @@ import ast
 import magic
 from pathlib import Path
 from typing import Dict, List, Any
-import yaml
+from config import DEFAULT_CONFIG
+import re
 
 class CodeStructureParser:
-    def __init__(self, config_path: str = "project.yaml"):
-        with open(config_path) as f:
-            self.config = yaml.safe_load(f)
+    def __init__(self):
+        self.config = DEFAULT_CONFIG
         self.ignore_dirs = set(self.config['analysis']['code_parsing']['directory_structure']['ignore'])
         self.entry_points = self.config['analysis']['code_parsing']['entry_points']
         self.max_size = self.parse_size(self.config['analysis']['code_parsing']['file_analysis']['max_size'])
@@ -26,36 +26,27 @@ class CodeStructureParser:
             "file_types": {},
             "project_size": 0
         }
-
         for root, dirs, files in os.walk(root_dir):
-            # Remove ignored directories
             dirs[:] = [d for d in dirs if d not in self.ignore_dirs]
-            
             for file in files:
                 file_path = Path(root) / file
                 if file_path.is_symlink():
                     continue
-                
-                # Check file size
                 file_size = file_path.stat().st_size
                 if file_size > self.max_size:
                     continue
-                
                 structure["project_size"] += file_size
-                
-                # Check for entry points
                 if file in self.entry_points:
                     structure["entry_points"].append(str(file_path))
-                
-                # Analyze file type
                 mime = magic.from_file(str(file_path), mime=True)
                 structure["file_types"].setdefault(mime, 0)
                 structure["file_types"][mime] += 1
-                
-                # Parse code files
-                if file_path.suffix == ".py":
-                    structure["modules"].append(self.parse_python_file(file_path))
-                    
+                if file_path.suffix in [".py", ".js", ".jsx", ".ts", ".tsx"]:
+                    structure["modules"].append({
+                        "file": str(file_path),
+                        "language": file_path.suffix[1:],
+                        "size": file_size
+                    })
         return structure
 
     def parse_python_file(self, file_path: Path) -> Dict[str, Any]:
@@ -64,7 +55,6 @@ class CodeStructureParser:
                 tree = ast.parse(f.read())
             except:
                 return {"file": str(file_path), "error": "parse_error"}
-                
         return {
             "file": str(file_path),
             "classes": [self._parse_class(node) for node in ast.walk(tree) if isinstance(node, ast.ClassDef)],

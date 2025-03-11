@@ -3,24 +3,20 @@ import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List
-import yaml
+from config import DEFAULT_CONFIG
 import ast
 
 class DependencyMapper:
-    def __init__(self, config_path: str = "project.yaml"):
-        with open(config_path) as f:
-            self.config = yaml.safe_load(f)
+    def __init__(self):
+        self.config = DEFAULT_CONFIG
         self.supported_languages = self.config['system']['supported_languages']
         
     def build_dependency_graph(self, root_dir: str = ".") -> Dict[str, List[str]]:
         graph = {}
         root_path = Path(root_dir)
-        
-        # Process dependency files
         for file in root_path.glob("**/*"):
             if not file.is_file() or file.stat().st_size == 0:
-                continue  # Skip empty files
-                
+                continue
             try:
                 if file.name == "requirements.txt":
                     graph.setdefault("python", []).extend(self._parse_requirements(file))
@@ -32,14 +28,9 @@ class DependencyMapper:
             except Exception as e:
                 print(f"⚠️ Error processing {file}: {str(e)}")
                 continue
-        
-        # Add code structure dependencies
         code_deps = self._map_code_dependencies(root_path)
         graph.update(code_deps)
-        
         return graph
-
-    
 
     def _parse_requirements(self, file_path: Path) -> List[str]:
         deps = []
@@ -50,7 +41,7 @@ class DependencyMapper:
                     deps.append(line.split("==")[0])
         return deps
 
-    def _parse_package_json(self, file_path: Path) -> Dict[str, str]:
+    def _parse_package_json(self, file_path: Path) -> Dict[str, List[str]]:
         with open(file_path) as f:
             data = json.load(f)
         return {
@@ -62,7 +53,6 @@ class DependencyMapper:
         try:
             if file_path.stat().st_size == 0:
                 return []
-                
             tree = ET.parse(file_path)
             root = tree.getroot()
             ns = {'mvn': 'http://maven.apache.org/POM/4.0.0'}
@@ -79,16 +69,21 @@ class DependencyMapper:
 
     def _map_code_dependencies(self, root_path: Path) -> Dict[str, List[str]]:
         deps = {}
+        for file in root_path.glob("**/*.{js,jsx,ts,tsx}"):  
+            with open(file) as f:
+                content = f.read()
+                imports = self._parse_javascript_imports(content)
+            deps[str(file)] = imports
+        
         for file in root_path.glob("**/*.py"):
             with open(file) as f:
                 try:
                     content = f.read()
-                    if not content:  # Handle empty files
+                    if not content:
                         continue
                     tree = ast.parse(content)
                 except:
                     continue
-                
             imports = []
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
@@ -96,6 +91,16 @@ class DependencyMapper:
                 elif isinstance(node, ast.ImportFrom):
                     module = node.module or ""
                     imports.extend(f"{module}.{alias.name}" if module else alias.name for alias in node.names)
-            
             deps[str(file)] = imports
         return {"code_imports": deps}
+
+    def _parse_javascript_imports(self, content: str) -> List[str]:
+        """Detects ES6 imports in JS/TS files"""
+        imports = []
+        for line in content.split('\n'):
+            if line.strip().startswith('import'):
+                # Match patterns like: import React from 'react'
+                match = re.match(r"import\s+.*?\s+from\s+['\"](.+?)['\"]", line)
+                if match:
+                    imports.append(match.group(1))
+        return imports

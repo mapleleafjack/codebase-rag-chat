@@ -12,7 +12,7 @@ def main():
     
     args = parser.parse_args()
     
-    assistant = CodebaseRAGAssistant(config_path=args.config)
+    assistant = CodebaseRAGAssistant()
     
 
     if args.command == "analyze":
